@@ -35,6 +35,26 @@ import re
 import unicodedata
 import re
 
+def minimal_llm_preprocess(df):
+    df = df.copy()
+
+    # Prevent modifications to the original DataFrame
+    df = df.copy()
+
+    # 1. Lowercase the text
+    df['text'] = df['text'].apply(lambda x: str(x).lower())
+
+    # Remove emails
+    df['text'] = df['text'].apply(
+        lambda x: re.sub(r'([a-z0-9+._-]+@[a-z0-9+._-]+\.[a-z0-9+_-]+\b)', "", x))
+
+    #  Remove URLs
+    df['text'] = df['text'].apply(
+        lambda x: re.sub(
+            r'(http|https|ftp|ssh)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?',
+            "", x))
+
+    return df
 
 def nlp_analysis(df):
     """

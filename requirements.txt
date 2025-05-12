@@ -7,3 +7,14 @@ scikit-learn~=1.5.2
 wordcloud~=1.9.4
 textblob~=0.18.0.post0
 lightgbm~=4.5.0
+
+transformers[torch]
+datasets
+rich
+evaluate
+peft
+torchmetrics
+adapters
+graphviz
+torchview
+bitsandbytes
