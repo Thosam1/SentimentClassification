@@ -43,6 +43,7 @@ def load_blank_model(config, quantization_config=None):
     model_config.hidden_dropout_prob = config.dropout  # Modify hidden dropout prob (default is 0.1)
     model_config.attention_probs_dropout_prob = config.attention_dropout  # Modify attention dropout prob
     model_config.num_labels = config.num_classes  # Set the number of labels for classification
+    # model_config.problem_type = config.problem_type
 
     model = AutoModelForSequenceClassification.from_pretrained(
         config.model,
