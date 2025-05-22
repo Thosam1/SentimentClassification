@@ -18,3 +18,5 @@ adapters
 graphviz
 torchview
 bitsandbytes
+
+black
