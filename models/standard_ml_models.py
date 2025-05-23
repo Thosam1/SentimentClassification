@@ -15,8 +15,8 @@ def train_and_predict_logistic_regression(
     y_train: pd.Series,
     X_val: csr_matrix,
     X_test: csr_matrix,
-    C: float = 1.0,
-    max_iter: int = 100,
+    C: float = 0.1,
+    max_iter: int = 300,
 ) -> Tuple[pd.Series, pd.Series, pd.Series, LogisticRegression]:
     """
     Trains a logistic regression model and returns predictions on train, validation, and test sets.
