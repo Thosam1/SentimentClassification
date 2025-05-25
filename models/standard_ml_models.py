@@ -51,7 +51,7 @@ def train_and_predict_random_forest(
     y_train: pd.Series,
     X_val: csr_matrix,
     X_test: csr_matrix,
-    n_estimators: int = 100,
+    n_estimators: int = 200,
     max_depth: int = None,
     random_state: int = RANDOM_SEED,
 ) -> Tuple[pd.Series, pd.Series, pd.Series, RandomForestClassifier]:

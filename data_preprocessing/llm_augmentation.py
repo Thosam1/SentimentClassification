@@ -1,31 +1,44 @@
 import re
+from collections import Counter, defaultdict
+from tqdm import tqdm
+import torch
+
 
 paraphrasing_prompt = """
 You are helping with a sentiment classification task.
 
-Given the following input sentence, generate 2 different paraphrased versions that express the same sentiment and meaning, but use different words or sentence structure.
+Given the following input sentence, generate exactly 2 paraphrased versions that express the same sentiment and meaning, but use different words or sentence structure.
 
-The goal is to improve diversity for classification without changing the tone or emotional content.
-
-Respond in this format:
-
-<VARIATION> <first paraphrased sentence>
-<VARIATION> <second paraphrased sentence>
+Important rule:
+- Always start each line with "<VARIATION> " followed by the paraphrased sentence.
+- Return only the 2 lines.
 
 Text: "<<INPUT>>"
 """
+
+
+# """
+# You are helping with a sentiment classification task.
+#
+# Given the following input sentence, generate 2 different paraphrased versions that express the same sentiment and meaning, but use different words or sentence structure.
+#
+# The goal is to improve diversity for classification without changing the tone or emotional content.
+#
+# Respond in this format:
+#
+# <VARIATION> <first paraphrased sentence>
+# <VARIATION> <second paraphrased sentence>
+#
+# Text: "<<INPUT>>"
+# """
 
 insert_words_prompt = """
 You are helping with a sentiment classification task.
 
 Given the following sentence, generate 2 versions of the sentence by naturally inserting one or two words or short phrases. The added content should not change the sentiment or meaning, only provide variation.
 
-Keep the tone and emotional content the same.
-
-Respond in this format:
-
-<VARIATION> <first modified sentence>
-<VARIATION> <second modified sentence>
+Important rule:
+- Always start each line with "<VARIATION> " followed by the paraphrased sentence.
 
 Text: "<<INPUT>>"
 """
@@ -35,12 +48,8 @@ You are helping with a sentiment classification task.
 
 Given the following sentence, generate 2 versions by swapping words for suitable synonyms. The meaning and sentiment must remain exactly the same.
 
-Only make small changes that improve diversity.
-
-Respond in this format:
-
-<VARIATION> <first modified sentence>
-<VARIATION> <second modified sentence>
+Important rule:
+- Always start each line with "<VARIATION> " followed by the paraphrased sentence.
 
 Text: "<<INPUT>>"
 """
@@ -71,9 +80,39 @@ def generate_variations(
 
     messages.append({"role": "user", "content": user_prompt})
 
-    outputs = pipeline(messages, max_new_tokens=max_new_tokens, pad_token_id=pipeline.tokenizer.eos_token_id)
+    outputs = pipeline(
+        messages,
+        max_new_tokens=max_new_tokens,
+        pad_token_id=pipeline.tokenizer.eos_token_id,
+    )
 
     return outputs[0]["generated_text"][-1]["content"]
+
+
+def llm_augment(pipeline, df, prompt):
+    """
+    Generate variations for all texts in df using the prompt and pipeline.
+
+    Args:
+        pipeline: the LLM generation pipeline.
+        df: DataFrame with at least a 'text' column.
+        prompt: prompt string with <<INPUT>> placeholder.
+
+    Returns:
+        dict[int, list[str]]: key is variation index (0,1...), value is list of sentences.
+    """
+    variations_dict = defaultdict(list)
+
+    for text in tqdm(df.text):
+        prompt_filled = prompt.replace("<<INPUT>>", text)
+        output_text = generate_variations(pipeline, prompt_filled, text)
+
+        variations = extract_generated_variations(output_text)
+
+        for i, variation in enumerate(variations):
+            variations_dict[i].append(variation)
+
+    return variations_dict
 
 
 def extract_generated_variations(response_text):
@@ -106,3 +145,93 @@ def extract_generated_variations(response_text):
             ]
 
     return matches
+
+
+def save_variations_to_csv(variations_dict, df, prompt_name, base_path=""):
+    """
+    Save variations to CSV files, one file per variation index.
+
+    Args:
+        variations_dict: dict[int, list[str]]  # key=index of variation, value=list of sentences
+        labels_dict: dict[int, list[int]]      # key=index of variation, value=list of labels for sentences
+        base_path: str                         # directory + prefix for csv files
+
+    CSV columns: id, sentence, label
+    """
+    for idx, sentences in variations_dict.items():
+        df = pd.DataFrame(
+            {
+                "id": list(range(len(df))),
+                "sentence": sentences,
+                "labels": df["labels"],
+            }
+        )
+        csv_file = f"test_{prompt_name}_variation_{idx+1}.csv"
+        df.to_csv(csv_file, index=False)
+        print(f"Saved variation {idx+1} to {csv_file}")
+
+
+def load_variations_csv(paths):
+    """
+    Load variations from multiple CSVs.
+
+    Args:
+        paths (list of str): List of CSV file paths, one per variation.
+
+    Returns:
+        List of lists: each sublist contains sentences for that variation index
+    """
+    all_variations = []
+    for path in paths:
+        df = pd.read_csv(path)
+        sentences = df["sentence"].tolist()
+        all_variations.append(sentences)
+    return all_variations
+
+
+def majority_vote(predictions):
+    """
+    Return the most common label from a list of predictions.
+    """
+    count = Counter(predictions)
+    return count.most_common(1)[0][0]
+
+
+@torch.inference_mode()
+def predict_single_text(model, tokenizer, text, device, max_len=128):
+    """
+    Predict class index for a single text string.
+    """
+    model.eval()
+    encoding = tokenizer(
+        text,
+        max_length=max_len,
+        padding="max_length",
+        truncation=True,
+        return_tensors="pt",
+    )
+    input_ids = encoding["input_ids"].to(device)
+    attention_mask = encoding["attention_mask"].to(device)
+
+    outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+    logits = outputs.logits
+    _, pred = torch.max(logits, dim=1)
+    return pred.item()
+
+
+def predict_with_majority_voting(
+    model, tokenizer, pipeline, original_text, prompt, device, variations_dict
+):
+    prompt_filled = prompt.replace("<<INPUT>>", original_text)
+    output_text = generate_variations(pipeline, prompt_filled, original_text)
+    variations = extract_generated_variations(output_text)
+
+    all_texts = [original_text] + variations
+
+    all_predictions = [
+        predict_single_text(model, tokenizer, txt, device) for txt in all_texts
+    ]
+
+    final_prediction = majority_vote(all_predictions)
+
+    return final_prediction, all_predictions
