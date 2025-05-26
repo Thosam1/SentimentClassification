@@ -11,6 +11,8 @@ from collections import Counter
 from typing import List, Literal, Optional
 from transformers import BertModel, AutoModelForSequenceClassification, AutoConfig
 
+from utils.utils import L_score
+
 
 class SentimentClassifier(nn.Module):
 
@@ -53,7 +55,7 @@ def load_blank_model(config, quantization_config=None):
     # model_config.problem_type = config.problem_type
 
     model = AutoModelForSequenceClassification.from_pretrained(
-        config.model, config=model_config, quantization_config=quantization_config
+        config.model, config=model_config
     )
     model.to(config.device)
 
@@ -129,11 +131,14 @@ def eval_model(model, data_loader, loss_fn, device):
         all_targets.extend(targets.cpu().numpy())
 
         # Optional: show running F1 during evaluation
-        current_f1 = f1_score(all_targets, all_preds, average="macro")
-        loop.set_postfix(loss=loss.item(), f1=round(current_f1, 4))
+        # current_f1 = f1_score(all_targets, all_preds, average="macro")
+        # loop.set_postfix(loss=loss.item(), f1=round(current_f1, 4))
+        current_L_score = L_score(all_targets, all_preds)
+        loop.set_postfix(loss=loss.item(), L_score=round(current_L_score, 4))
 
-    epoch_f1 = f1_score(all_targets, all_preds, average="macro")
-    return epoch_f1, np.mean(losses)
+    # epoch_f1 = f1_score(all_targets, all_preds, average="macro")
+    epoch_L_score = L_score(all_targets, all_preds)
+    return epoch_L_score, np.mean(losses)
 
 
 @torch.inference_mode()

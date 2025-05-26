@@ -20,6 +20,7 @@ bitsandbytes
 
 black
 unidecode
+langdetect
 transformers
 accelerate
 fbgemm-gpu
