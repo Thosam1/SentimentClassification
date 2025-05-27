@@ -19,6 +19,11 @@ torchview
 bitsandbytes
 
 black
+
+#deberta
+protobuf
+tiktoken
+
 unidecode
 langdetect
 transformers

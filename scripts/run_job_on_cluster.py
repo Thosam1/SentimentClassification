@@ -75,29 +75,25 @@ def main():
     device = get_device()
 
     model_name_list = [
-        # "distilbert/distilbert-base-cased",
         # "microsoft/deberta-v3-base",
         # "microsoft/deberta-v3-large",
-        "FacebookAI/roberta-base",
+        # "FacebookAI/roberta-base",
         # "FacebookAI/xlm-roberta-base",
-        "FacebookAI/roberta-large",
+        # "FacebookAI/roberta-large",
         # "FacebookAI/xlm-roberta-large",
-        "distilbert/distilbert-base-cased",
-        "distilbert/distilbert-base-multilingual-cased",
-        # "agentlans/mdeberta-v3-base-sentiment",
+        # "distilbert/distilbert-base-cased",
+        # "distilbert/distilbert-base-multilingual-cased",
     ]
 
     model_names = [
-        # "distilbert-base-cased",
         # "deberta-v3-base",
         # "deberta-v3-large",
-        "roberta-base",
+        #"roberta-base",
         # "xlm-roberta-base",
-        "roberta-large",
+        # "roberta-large",
         # "xlm-roberta-large",
-        "distilbert-base-cased",
-        "distilbert-base-multilingual-cased"
-        # "mdeberta-v3-base-sentiment"
+        #"distilbert-base-cased",
+        # "distilbert-base-multilingual-cased"
     ]
 
     for i, model_name in enumerate(model_name_list):
