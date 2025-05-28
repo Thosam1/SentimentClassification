@@ -1,10 +1,12 @@
-from sklearn.metrics import classification_report, mean_absolute_error
-import torch
 import os
 import random
 
 import numpy as np
+import torch
+from sklearn.metrics import classification_report, mean_absolute_error
+
 from config.config import LABEL_MAPPING_STRING_TO_NUMBER
+
 
 def get_device():
     """Return the best available device (CUDA, MPS, or CPU)."""
@@ -52,3 +54,32 @@ def L_score(y_test, y_pred):
     mae_val = mean_absolute_error(y_test, y_pred)
     L_score_val = 0.5 * (2 - mae_val)
     return L_score_val
+
+
+def classification_breakdown(y_true, y_pred):
+    """
+    Classifies predictions into:
+    - correctly classified
+    - partially misclassified (neutral <-> positive or neutral <-> negative)
+    - fully misclassified (positive <-> negative)
+    """
+    correct = 0
+    partial = 0
+    full = 0
+
+    for yt, yp in zip(y_true, y_pred):
+        if yt == yp:
+            correct += 1
+        elif abs(yt - yp) == 1:
+            partial += 1  # e.g., 0 vs 1 or 0 vs -1
+        else:
+            full += 1     # e.g., -1 vs 1
+
+    total = correct + partial + full
+    print(f"Total samples: {total}")
+    print(f"Correctly classified: {correct}")
+    print(f"Partially misclassified (neutral <-> pos/neg): {partial}")
+    print(f"Misclassified (positive <-> negative): {full}")
+
+    return {"correctly_classified": correct, "partially_misclassified": partial, "fully_misclassified": full}
+

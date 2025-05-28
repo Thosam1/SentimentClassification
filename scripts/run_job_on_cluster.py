@@ -75,6 +75,8 @@ def main():
     device = get_device()
 
     model_name_list = [
+        "google-bert/bert-base-cased",
+        "google-bert/bert-base-multilingual-cased",
         # "microsoft/deberta-v3-base",
         # "microsoft/deberta-v3-large",
         # "FacebookAI/roberta-base",
@@ -86,6 +88,8 @@ def main():
     ]
 
     model_names = [
+        "bert-base-cased",
+        "bert-base-multilingual-cased",
         # "deberta-v3-base",
         # "deberta-v3-large",
         #"roberta-base",
@@ -159,31 +163,31 @@ def main():
             )
             print(f"Train loss {train_loss:.4f} L-score {train_f1:.4f}")
 
-            val_f1, val_loss = eval_model(model, val_loader, loss_fn, device)
-            print(f"Val   loss {val_loss:.4f} L-score {val_f1:.4f}\n")
+            # val_f1, val_loss = eval_model(model, val_loader, loss_fn, device)
+            # print(f"Val   loss {val_loss:.4f} L-score {val_f1:.4f}\n")
 
             history["train_f1"].append(train_f1)
             history["train_loss"].append(train_loss)
-            history["val_f1"].append(val_f1)
-            history["val_loss"].append(val_loss)
+            # history["val_f1"].append(val_f1)
+            # history["val_loss"].append(val_loss)
 
-            if val_f1 > best_f1:
+            if True:
                 torch.save(
                     model.state_dict(), f"{model_names[i]}.bin"
                 )
-                print(
-                    f"Validation L-score improved from {best_f1:.4f} to {val_f1:.4f}. Model saved."
-                )
-                best_f1 = val_f1
+                # print(
+                #     f"Validation L-score improved from {best_f1:.4f} to {val_f1:.4f}. Model saved."
+                # )
+                # best_f1 = val_f1
                 epochs_without_improvement = 0
-            else:
-                epochs_without_improvement += 1
-                print(f"No improvement in L-score for {epochs_without_improvement} epoch(s).")
-                if epochs_without_improvement >= config.patience:
-                    print(
-                        f"Early stopping triggered after {config.patience} epochs without improvement."
-                    )
-                    break
+            # else:
+            #     epochs_without_improvement += 1
+            #     print(f"No improvement in L-score for {epochs_without_improvement} epoch(s).")
+            #     if epochs_without_improvement >= config.patience:
+            #         print(
+            #             f"Early stopping triggered after {config.patience} epochs without improvement."
+            #         )
+            #         break
 
 
 if __name__ == "__main__":
