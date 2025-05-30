@@ -1,35 +1,56 @@
 from collections import Counter
+from dataclasses import dataclass
+from typing import List, Literal, Optional
 
 import numpy as np
-import pandas as pd
 import torch
 import torch.nn.functional as F
 from torch import nn
 from tqdm import tqdm
-import numpy as np
-from collections import Counter
-from typing import List, Literal, Optional
-from transformers import BertModel, AutoModelForSequenceClassification, AutoConfig
+from transformers import (
+    AutoModelForSequenceClassification,
+    AutoConfig,
+    AutoTokenizer,
+)
 
-from utils.utils import L_score
+from config.config import RANDOM_SEED
+from data_preprocessing.dataset_dataloader import create_data_loader
+from utils.utils import L_score, get_device
 
 
-class SentimentClassifier(nn.Module):
+@dataclass
+class ConfigBase:
+    batch_size: int
+    model: str
+    seed: int
+    lr: float
+    dropout: float
+    attention_dropout: float
+    device: str
+    num_classes: int
+    max_len: int
 
-    def __init__(self, model, n_classes):
-        super(SentimentClassifier, self).__init__()
-        self.bert = BertModel.from_pretrained(model)
-        self.drop = nn.Dropout(p=0.3)
-        self.out = nn.Linear(self.bert.config.hidden_size, n_classes)
+@dataclass
+class ConfigExtended(ConfigBase):
+    epochs: int
+    patience: int
 
-    def forward(self, input_ids, attention_mask):
-        output = self.bert(input_ids=input_ids, attention_mask=attention_mask)
-        output = self.drop(output.pooler_output)
-        return self.out(output)
+def load_config_base():
+    return ConfigBase(
+        batch_size=16,
+        model="FacebookAI/roberta-large",
+        seed=RANDOM_SEED,
+        lr=3e-5,
+        dropout=0.1,
+        attention_dropout=0.1,
+        device=get_device(),
+        num_classes=3,
+        max_len=64,
+    )
 
 
 # We will use this function later to reload the model from scratch
-def load_blank_model(config, quantization_config=None):
+def load_blank_model(config):
     # Delete references to a previously loaded model
     if "optimizer" in globals():
         global optimizer
@@ -42,17 +63,10 @@ def load_blank_model(config, quantization_config=None):
     torch.cuda.empty_cache()
 
     # Modify dropout parameters in the config
-    model_config = AutoConfig.from_pretrained(config.model)  # Load the model's config
-    model_config.hidden_dropout_prob = (
-        config.dropout
-    )  # Modify hidden dropout prob (default is 0.1)
-    model_config.attention_probs_dropout_prob = (
-        config.attention_dropout
-    )  # Modify attention dropout prob
-    model_config.num_labels = (
-        config.num_classes
-    )  # Set the number of labels for classification
-    # model_config.problem_type = config.problem_type
+    model_config = AutoConfig.from_pretrained(config.model)
+    model_config.hidden_dropout_prob = config.dropout
+    model_config.attention_probs_dropout_prob = config.attention_dropout
+    model_config.num_labels = config.num_classes
 
     model = AutoModelForSequenceClassification.from_pretrained(
         config.model, config=model_config
@@ -60,6 +74,28 @@ def load_blank_model(config, quantization_config=None):
     model.to(config.device)
 
     return model
+
+
+def load_model_with_data_loader(config, model_name, model_path, test_df):
+    config.model = model_name
+    device = get_device()
+
+    llm_tokenizer = AutoTokenizer.from_pretrained(config.model)
+    llm_model = load_blank_model(config)
+
+    # Load saved model state dict
+    state_dict = torch.load(model_path, map_location=device)
+    llm_model.load_state_dict(state_dict)
+
+    llm_model.to(device)
+    llm_model.eval()
+
+    loss_fn = nn.CrossEntropyLoss().to(device)
+    test_data_loader = create_data_loader(
+        test_df, llm_tokenizer, config.max_len, config.batch_size
+    )
+
+    return llm_model, loss_fn, test_data_loader
 
 
 def train_epoch(model, data_loader, loss_fn, optimizer, device, scheduler):
@@ -72,14 +108,7 @@ def train_epoch(model, data_loader, loss_fn, optimizer, device, scheduler):
     loop = tqdm(data_loader, desc="Training", leave=False)
 
     for d in loop:
-        input_ids = d["input_ids"].to(device)
-        attention_mask = d["attention_mask"].to(device)
-        targets = d["targets"].to(device)
-
-        outputs = model(input_ids=input_ids, attention_mask=attention_mask)
-
-        logits = outputs.logits
-        _, preds = torch.max(logits, dim=1)
+        logits, preds, targets = model_predictions(d, device, model)
         loss = loss_fn(logits, targets)
 
         losses.append(loss.item())
@@ -115,14 +144,7 @@ def eval_model(model, data_loader, loss_fn, device):
     loop = tqdm(data_loader, desc="Evaluating", leave=False)
 
     for d in loop:
-        input_ids = d["input_ids"].to(device)
-        attention_mask = d["attention_mask"].to(device)
-        targets = d["targets"].to(device)
-
-        outputs = model(input_ids=input_ids, attention_mask=attention_mask)
-        logits = outputs.logits
-
-        _, preds = torch.max(logits, dim=1)
+        logits, preds, targets = model_predictions(d, device, model)
 
         loss = loss_fn(logits, targets)
 
@@ -166,14 +188,8 @@ def get_predictions(model, data_loader, device):
 
     for d in data_loader:
         texts = d["review_text"]
-        input_ids = d["input_ids"].to(device)
-        attention_mask = d["attention_mask"].to(device)
-        targets = d["targets"].to(device)
+        logits, preds, targets = model_predictions(d, device, model)
 
-        outputs = model(input_ids=input_ids, attention_mask=attention_mask)
-        logits = outputs.logits  # use outputs directly if not a Hugging Face model
-
-        _, preds = torch.max(logits, dim=1)
         probs = F.softmax(logits, dim=1)
 
         review_texts.extend(texts)
@@ -186,6 +202,16 @@ def get_predictions(model, data_loader, device):
     real_values = torch.stack(real_values).cpu()
 
     return review_texts, predictions, prediction_probs, real_values
+
+
+def model_predictions(d, device, model):
+    input_ids = d["input_ids"].to(device)
+    attention_mask = d["attention_mask"].to(device)
+    targets = d["targets"].to(device)
+    outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+    logits = outputs.logits
+    _, preds = torch.max(logits, dim=1)
+    return logits, preds, targets
 
 
 def predict_with_ensemble(
@@ -253,22 +279,3 @@ def predict_with_ensemble(
 
     else:
         raise ValueError(f"Unknown strategy: {strategy}")
-
-
-def generate_submission(
-    predictions, label_map=None, output_path="../submissions/submission.csv"
-):
-    # Convert tensor to list if it's a torch.Tensor
-    if isinstance(predictions, torch.Tensor):
-        predictions = predictions.detach().cpu().numpy()  # or .tolist()
-
-    ids = list(range(len(predictions)))
-
-    # Optionally map prediction indices to label names
-    if label_map:
-        predictions = [label_map[p] for p in predictions]
-
-    # Save to CSV
-    submission_df = pd.DataFrame({"id": ids, "label": predictions})
-    submission_df.to_csv(output_path, index=False)
-    print(f"Submission file saved to {output_path}")

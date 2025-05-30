@@ -2,6 +2,7 @@ import os
 import random
 
 import numpy as np
+import pandas as pd
 import torch
 from sklearn.metrics import classification_report, mean_absolute_error
 
@@ -17,6 +18,7 @@ def get_device():
     else:
         return "cpu"
 
+
 def set_seed(seed: int) -> None:
     np.random.seed(seed)
     random.seed(seed)
@@ -29,6 +31,7 @@ def set_seed(seed: int) -> None:
     # Set a fixed value for the hash seed
     os.environ["PYTHONHASHSEED"] = str(seed)
     print(f"Random seed set as {seed}")
+
 
 def decode_label(label_int):
     mapping = {-1: "negative", 0: "neutral", 1: "positive"}
@@ -50,10 +53,30 @@ def print_evaluation(y_test, y_pred):
         )
     )
 
+
 def L_score(y_test, y_pred):
     mae_val = mean_absolute_error(y_test, y_pred)
     L_score_val = 0.5 * (2 - mae_val)
     return L_score_val
+
+
+def generate_submission(
+    predictions, label_map=None, output_path="../submissions/submission.csv"
+):
+    # Convert tensor to list if it's a torch.Tensor
+    if isinstance(predictions, torch.Tensor):
+        predictions = predictions.detach().cpu().numpy()  # or .tolist()
+
+    ids = list(range(len(predictions)))
+
+    # Optionally map prediction indices to label names
+    if label_map:
+        predictions = [label_map[p] for p in predictions]
+
+    # Save to CSV
+    submission_df = pd.DataFrame({"id": ids, "label": predictions})
+    submission_df.to_csv(output_path, index=False)
+    print(f"Submission file saved to {output_path}")
 
 
 def classification_breakdown(y_true, y_pred):
@@ -73,7 +96,7 @@ def classification_breakdown(y_true, y_pred):
         elif abs(yt - yp) == 1:
             partial += 1  # e.g., 0 vs 1 or 0 vs -1
         else:
-            full += 1     # e.g., -1 vs 1
+            full += 1  # e.g., -1 vs 1
 
     total = correct + partial + full
     print(f"Total samples: {total}")
@@ -81,5 +104,8 @@ def classification_breakdown(y_true, y_pred):
     print(f"Partially misclassified (neutral <-> pos/neg): {partial}")
     print(f"Misclassified (positive <-> negative): {full}")
 
-    return {"correctly_classified": correct, "partially_misclassified": partial, "fully_misclassified": full}
-
+    return {
+        "correctly_classified": correct,
+        "partially_misclassified": partial,
+        "fully_misclassified": full,
+    }

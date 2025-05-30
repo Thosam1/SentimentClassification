@@ -4,38 +4,6 @@ from tqdm import tqdm
 import torch
 import pandas as pd
 
-sanitizing_prompt="""
-You are a text preprocessing assistant for a sentiment classification competition. Your job is to sanitize user-generated content while preserving its original meaning and sentiment.
-
-Given an input text, follow these steps carefully:
-
-1. If the text is in a language other than English, translate it into natural English.
-2. Correct any spelling or grammatical errors.
-3. Expand contractions (e.g., "don't" → "do not").
-4. Replace any obfuscated or censored swearwords with their full uncensored versions, such as:
-   - "A*#@le" → "asshole"
-   - "m*ther f#cker" → "mother fucker"
-   - (Handle other common masked profanity as well, using context to infer the intended word.)
-5. Do not censor or euphemize offensive words—your goal is to retain the true intent of the sentence.
-6. Do not classify or comment on the sentiment; only sanitize the text as described above.
-
-Return only the cleaned and normalized sentence as output.
-
-### Example
-
-Input:  
-A*#@le, you m*ther f#cker  
-
-Output:  
-Asshole, you mother fucker
-
----
-
-Now process the following input:
-
-Input: "<<INPUT>>"
-"""
-
 paraphrasing_prompt = """
 You are helping with a sentiment classification task.
 
@@ -47,22 +15,6 @@ Important rule:
 
 Text: "<<INPUT>>"
 """
-
-
-# """
-# You are helping with a sentiment classification task.
-#
-# Given the following input sentence, generate 2 different paraphrased versions that express the same sentiment and meaning, but use different words or sentence structure.
-#
-# The goal is to improve diversity for classification without changing the tone or emotional content.
-#
-# Respond in this format:
-#
-# <VARIATION> <first paraphrased sentence>
-# <VARIATION> <second paraphrased sentence>
-#
-# Text: "<<INPUT>>"
-# """
 
 insert_words_prompt = """
 You are helping with a sentiment classification task.

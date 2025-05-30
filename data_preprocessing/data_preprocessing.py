@@ -12,9 +12,6 @@ from typing import Callable, List
 from nltk.stem import WordNetLemmatizer
 from unidecode import unidecode
 
-# You’ll need to define or import these:
-# cont_to_exp
-# TextBlob (if using spelling correction)
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 import nltk
 
@@ -184,3 +181,73 @@ def preprocess_text_with_count_vectorizer(
     y_test = test_df[label_column]
 
     return X_train, X_val, X_test, y_train, y_val, y_test, vectorizer
+
+def nlp_analysis(df):
+    """
+    Perform basic NLP feature extraction on a DataFrame containing text data.
+
+    This function augments the input DataFrame by computing several text-based
+    features for each text in the 'text' column, including word counts,
+    character counts, average word length, stopword counts, numerical counts,
+    uppercase word counts, email detection, and URL detection.
+
+    Parameters:
+    ----------
+    df : pandas.DataFrame
+        A DataFrame with at least a 'text' column containing text data.
+
+    Returns:
+    -------
+    df : pandas.DataFrame
+        The original DataFrame augmented with the following new columns:
+        - 'word_counts': Number of words in each text
+        - 'char_counts': Number of characters in each text
+        - 'avg_word_len': Average word length
+        - 'stop_words_len': Number of stopwords
+        - 'text_no_stop': Text without stopwords
+        - 'numerics_count': Number of numeric tokens
+        - 'upper_counts': Number of fully uppercase words
+        - 'emails': List of email addresses found in the text
+        - 'urls': Number of URLs found in the text
+    """
+    # Prevent modifications to the original DataFrame
+    df = df.copy()
+
+    # Word count per text
+    df['word_counts'] = df['text'].apply(lambda x: len(str(x).split()))
+
+    # Character count per text
+    df['char_counts'] = df['text'].apply(
+        lambda x: char_counts(str(x)))  # assumes custom `char_counts` function is defined
+
+    # Average word length
+    df['avg_word_len'] = df['char_counts'] / df['word_counts']
+
+    # Count of stopwords in each text
+    df['stop_words_len'] = df['text'].apply(
+        lambda x: len([t for t in x.split() if t in stopwords]))  # assumes `stopwords` set is defined
+
+    # text after removing stopwords
+    df['text_no_stop'] = df['text'].apply(
+        lambda x: ' '.join([t for t in x.split() if t not in stopwords]))
+
+    # Count of numeric words in each text
+    df['numerics_count'] = df['text'].apply(lambda x: len([t for t in x.split() if t.isdigit()]))
+
+    # Count of fully uppercase words
+    df['upper_counts'] = df['text'].apply(lambda x: len([t for t in x.split() if t.isupper()]))
+
+    # Extract email addresses using regex
+    df['emails'] = df['text'].apply(
+        lambda x: re.findall(r'([a-z0-9+._-]+@[a-z0-9+._-]+\.[a-z0-9+_-]+\b)', x, re.I))
+
+    # Count number of URLs using regex
+    df['urls'] = df['text'].apply(lambda x: len(
+        re.findall(r'(http|https|ftp|ssh)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?', x)))
+
+    return df
+
+def char_counts(x):
+    s = x.split()
+    x = ''.join(s)
+    return len(x)

@@ -1,5 +1,5 @@
 """
-Contains functions to load and preprocess data for training, validation, and testing.
+Contains functions to load data for training, validation, and testing.
 """
 
 import pandas as pd
