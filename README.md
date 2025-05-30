@@ -142,24 +142,12 @@ submissions/
 
 ---
 
-## 📚 Key Features
-
-- ✅ Transformer model fine-tuning and ensembling
-- 🧪 Classical ML baselines for comparison
-- 📈 Custom scoring (`L` score) penalizing more major over minor misclassifications
-- 🔁 Misclassification recovery using LLaMA-based paraphrasing
-- 🌐 Multilingual support via XLM-RoBERTa and DistilBERT
-- 📦 Modular, extensible project structure
-
----
-
 ## 📌 Future Work
 
 - Test different classification heads and attention mechanisms
 - Apply LLM translation for sanitizing input data
 - Improve paraphrasing strategies using cheaper LLMs or distillation
 - Apply selective LLM augmentation only to samples likely to be misclassified
-- Explore domain-specific fine-tuning with sentiment-heavy corpora
 
 ---
 
